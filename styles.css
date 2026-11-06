@@ -284,3 +284,9 @@ input.invalid { border-color: var(--danger); }
   .booking-item .btn-cancel { grid-column: 1 / -1; justify-self: end; }
   .actions .btn:not(.btn-ghost) { flex: 1; }
 }
+
+/* Loading / status */
+.slots.loading, .floor.loading { opacity: .45; pointer-events: none; }
+.notice { text-align: center; font-size: .85rem; color: var(--muted); margin: 0 0 1rem; }
+.notice.warn { color: var(--danger); }
+.btn:disabled { opacity: .6; cursor: progress; transform: none; }

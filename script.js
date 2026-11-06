@@ -2,6 +2,7 @@
   'use strict';
 
   // ---------- Config ----------
+  const API_URL = ((window.BOOKING_CONFIG && window.BOOKING_CONFIG.apiUrl) || '').trim();
   const STORAGE_KEY = 'ember-oak-bookings';
   const MAX_GUESTS = 10;
   const DAYS_AHEAD = 60;
@@ -9,6 +10,7 @@
   const SLOTS = ['17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30'];
 
   // x / y are percentages on the floor plan; w / h are pixel sizes
+  // (keep ids and seats in sync with TABLE_SEATS in apps-script/Code.gs)
   const TABLES = [
     // ริมหน้าต่าง
     { id: 'W1', seats: 2, shape: 'round', x: 12, y: 24, w: 54 },
@@ -32,8 +34,22 @@
   ];
   const ZONE = { W: 'ริมหน้าต่าง', M: 'กลางร้าน', B: 'บาร์ไวน์', P: 'ห้องส่วนตัว', G: 'มุมสวน' };
 
+  const API_ERRORS = {
+    TAKEN: 'ขออภัย โต๊ะนี้เพิ่งถูกจอง กรุณาเลือกโต๊ะใหม่',
+    BAD_DATE: 'วันที่ไม่ถูกต้อง',
+    BAD_TIME: 'เวลาไม่ถูกต้อง',
+    BAD_GUESTS: 'จำนวนแขกไม่ถูกต้อง',
+    BAD_TABLE: 'โต๊ะนี้ที่นั่งไม่พอ',
+    BAD_NAME: 'กรุณากรอกชื่อ',
+    BAD_PHONE: 'เบอร์โทรไม่ถูกต้อง',
+    BUSY: 'ระบบไม่ว่าง กรุณาลองใหม่อีกครั้ง',
+    NOT_FOUND: 'ไม่พบการจองนี้',
+  };
+  const NETWORK_ERROR = 'เชื่อมต่อระบบจองไม่ได้ กรุณาลองใหม่ หรือโทร 02-123-4567';
+
   // ---------- State ----------
   const state = { date: '', time: '', guests: 2, table: null, step: 1 };
+  const remote = {}; // date -> [{ table, time }] from Google Sheets
 
   // ---------- Helpers ----------
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -49,6 +65,10 @@
   });
   const fmtMonthShort = (s) => parseDate(s).toLocaleDateString('th-TH', { month: 'short' });
 
+  function escapeHTML(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
   function loadBookings() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
   }
@@ -56,23 +76,61 @@
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch { /* storage unavailable */ }
   }
 
-  // Deterministic pseudo-random so "other guests'" bookings stay stable for a given date/time/table
+  // ---------- API (Google Apps Script) ----------
+  async function apiGet(params) {
+    const url = `${API_URL}?${new URLSearchParams(params)}`;
+    const res = await fetch(url, { redirect: 'follow' });
+    return res.json();
+  }
+
+  async function apiPost(body) {
+    // text/plain keeps this a "simple" request, so the browser skips the CORS preflight Apps Script can't answer
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+
+  async function loadAvailability(date, force = false) {
+    if (!API_URL || !date) return true;
+    if (remote[date] && !force) return true;
+    try {
+      const data = await apiGet({ action: 'availability', date });
+      if (!data.ok) throw new Error(data.error);
+      remote[date] = data.bookings || [];
+      setNotice('');
+      return true;
+    } catch (err) {
+      console.error(err);
+      setNotice(NETWORK_ERROR, true);
+      return false;
+    }
+  }
+
+  // Demo mode only: deterministic pseudo-random "other guests" so the floor plan isn't empty
   function hash(str) {
     let h = 2166136261;
     for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
     return (h >>> 0) / 4294967295;
   }
 
+  const overlaps = (a, b) => Math.abs(toMin(a) - toMin(b)) < DINING_MINUTES;
+
   function isTaken(tableId, date, time) {
-    const t = toMin(time);
-    // Simulated bookings from other guests: a table stays occupied for the dining window
-    for (const s of SLOTS) {
-      const st = toMin(s);
-      if (st <= t && t < st + DINING_MINUTES && hash(`${date}|${s}|${tableId}`) < 0.18) return true;
+    if (API_URL) {
+      if ((remote[date] || []).some((b) => b.table === tableId && overlaps(b.time, time))) return true;
+    } else {
+      const t = toMin(time);
+      for (const s of SLOTS) {
+        const st = toMin(s);
+        if (st <= t && t < st + DINING_MINUTES && hash(`${date}|${s}|${tableId}`) < 0.18) return true;
+      }
     }
     // The visitor's own bookings
-    return loadBookings().some((b) =>
-      b.table === tableId && b.date === date && Math.abs(toMin(b.time) - t) < DINING_MINUTES);
+    return loadBookings().some((b) => b.table === tableId && b.date === date && overlaps(b.time, time));
   }
 
   const fits = (table, guests) => table.seats >= guests;
@@ -87,6 +145,17 @@
     return TABLES.some((t) => fits(t, guests) && !isTaken(t.id, date, time));
   }
 
+  // ---------- Notice bar ----------
+  const notice = document.createElement('p');
+  notice.className = 'notice';
+  $('#bookingForm').before(notice);
+  function setNotice(msg, warn = false) {
+    notice.textContent = msg;
+    notice.classList.toggle('warn', warn);
+    notice.hidden = !msg;
+  }
+  setNotice(API_URL ? '' : 'โหมดเดโม: การจองจะถูกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น');
+
   // ---------- Step 1: date, guests, time ----------
   const dateInput = $('#date');
   const guestsInput = $('#guests');
@@ -98,8 +167,7 @@
     dateInput.min = toISODate(today);
     dateInput.max = toISODate(max);
     // If it's too late to book today, default to tomorrow
-    const lastSlot = SLOTS[SLOTS.length - 1];
-    if (slotIsPast(toISODate(today), lastSlot)) today.setDate(today.getDate() + 1);
+    if (slotIsPast(toISODate(today), SLOTS[SLOTS.length - 1])) today.setDate(today.getDate() + 1);
     dateInput.value = state.date = toISODate(today);
   }
 
@@ -128,10 +196,19 @@
     if (!stillSelected) state.time = '';
   }
 
+  async function refreshSlots(force = false) {
+    const date = state.date;
+    slotsEl.classList.add('loading');
+    await loadAvailability(date, force);
+    if (date !== state.date) return; // user changed date while loading
+    slotsEl.classList.remove('loading');
+    renderSlots();
+  }
+
   dateInput.addEventListener('change', () => {
     state.date = dateInput.value;
     state.table = null;
-    renderSlots();
+    refreshSlots();
   });
 
   $$('[data-guests]').forEach((btn) => btn.addEventListener('click', () => {
@@ -147,6 +224,7 @@
 
   function renderFloor() {
     $$('.table', floor).forEach((n) => n.remove());
+    if (state.table && isTaken(state.table, state.date, state.time)) state.table = null;
     TABLES.forEach((t) => {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -183,6 +261,14 @@
     }
   }
 
+  async function refreshFloor() {
+    floor.classList.add('loading');
+    renderFloor();
+    await loadAvailability(state.date, true); // always fetch fresh data before picking a table
+    floor.classList.remove('loading');
+    renderFloor();
+  }
+
   function summaryHTML(withTable) {
     let s = `<b>${fmtDateLong(state.date)}</b> · เวลา <b>${state.time} น.</b> · <b>${state.guests} ท่าน</b>`;
     if (withTable && state.table) s += ` · โต๊ะ <b>${state.table}</b> (${ZONE[state.table[0]]})`;
@@ -199,8 +285,7 @@
     return null;
   }
 
-  function goTo(step) {
-    // Only validate when moving forward
+  function goTo(step, scroll = true) {
     for (let s = 1; s < step; s++) {
       const err = validateStep(s);
       if (err) { $(`#${err[0]}`).textContent = err[1]; step = s; break; }
@@ -212,21 +297,25 @@
       li.classList.toggle('active', n === step);
       li.classList.toggle('done', n < step);
     });
-    if (step === 1) renderSlots();
-    if (step === 2) { $('#summary2').innerHTML = summaryHTML(false); renderFloor(); }
+    if (step === 1) refreshSlots();
+    if (step === 2) { $('#summary2').innerHTML = summaryHTML(false); refreshFloor(); }
     if (step === 3) { $('#summary3').innerHTML = summaryHTML(true); $('#name').focus({ preventScroll: true }); }
-    $('#booking').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (scroll) $('#booking').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   $$('[data-next]').forEach((btn) => btn.addEventListener('click', () => goTo(Number(btn.dataset.next))));
 
   // ---------- Step 3: submit ----------
   const form = $('#bookingForm');
-  form.addEventListener('submit', (e) => {
+  const submitBtn = $('button[type="submit"]', form);
+
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (submitBtn.disabled) return;
     const name = $('#name');
     const phone = $('#phone');
     const email = $('#email');
+    const err3 = $('#err3');
     [name, phone, email].forEach((i) => i.classList.remove('invalid'));
 
     const digits = phone.value.replace(/\D/g, '');
@@ -234,19 +323,10 @@
     if (!name.value.trim()) { name.classList.add('invalid'); msg = 'กรุณากรอกชื่อ'; }
     else if (!/^0\d{8,9}$/.test(digits)) { phone.classList.add('invalid'); msg = 'เบอร์โทรไม่ถูกต้อง'; }
     else if (email.value && !email.checkValidity()) { email.classList.add('invalid'); msg = 'อีเมลไม่ถูกต้อง'; }
-    if (msg) { $('#err3').textContent = msg; return; }
+    if (msg) { err3.textContent = msg; return; }
+    err3.textContent = '';
 
-    // Re-check availability in case it changed while filling the form
-    if (isTaken(state.table, state.date, state.time)) {
-      $('#err2').textContent = 'ขออภัย โต๊ะนี้เพิ่งถูกจอง กรุณาเลือกใหม่';
-      state.table = null;
-      goTo(2);
-      return;
-    }
-
-    const code = 'EO' + Date.now().toString(36).slice(-5).toUpperCase();
     const booking = {
-      code,
       date: state.date,
       time: state.time,
       guests: state.guests,
@@ -256,28 +336,64 @@
       email: email.value.trim(),
       occasion: $('#occasion').value,
       note: $('#note').value.trim(),
-      createdAt: new Date().toISOString(),
     };
+
+    if (API_URL) {
+      const label = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'กำลังบันทึก…';
+      let res;
+      try {
+        res = await apiPost({ action: 'create', ...booking });
+      } catch (err) {
+        console.error(err);
+        res = { ok: false, error: 'NETWORK' };
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = label;
+      }
+      if (!res.ok) {
+        if (res.error === 'TAKEN') {
+          state.table = null;
+          goTo(2);
+          $('#err2').textContent = API_ERRORS.TAKEN;
+        } else {
+          err3.textContent = API_ERRORS[res.error] || NETWORK_ERROR;
+        }
+        return;
+      }
+      booking.code = res.code;
+      (remote[booking.date] = remote[booking.date] || []).push({ table: booking.table, time: booking.time });
+    } else {
+      if (isTaken(state.table, state.date, state.time)) {
+        state.table = null;
+        goTo(2);
+        $('#err2').textContent = API_ERRORS.TAKEN;
+        return;
+      }
+      booking.code = 'EO' + Date.now().toString(36).slice(-6).toUpperCase();
+    }
+
+    booking.createdAt = new Date().toISOString();
     const list = loadBookings();
     list.push(booking);
     saveBookings(list);
 
     $('#confirmText').innerHTML =
       `คุณ${escapeHTML(booking.name)} — ${summaryHTML(true)}<br>เราจะโทรยืนยันที่ ${escapeHTML(phone.value)} ภายใน 1 ชั่วโมง`;
-    $('#confirmCode').textContent = code;
+    $('#confirmCode').textContent = booking.code;
     const dlg = $('#confirmDialog');
-    if (typeof dlg.showModal === 'function') dlg.showModal(); else alert(`จองสำเร็จ รหัส ${code}`);
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else alert(`จองสำเร็จ รหัส ${booking.code}`);
 
     // reset
     form.reset();
-    $('#err3').textContent = '';
     state.time = '';
     state.table = null;
     state.guests = 2;
     guestsInput.value = 2;
     dateInput.value = state.date;
     renderBookings();
-    goTo(1);
+    goTo(1, false);
   });
 
   $('#confirmDialog').addEventListener('close', () => {
@@ -285,10 +401,6 @@
   });
 
   // ---------- My bookings ----------
-  function escapeHTML(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
-
   function renderBookings() {
     const el = $('#bookingList');
     const today = toISODate(new Date());
@@ -304,24 +416,46 @@
       <article class="booking-item">
         <div class="booking-date"><b>${parseDate(b.date).getDate()}</b><span>${fmtMonthShort(b.date)}</span></div>
         <div class="booking-meta">
-          <h4>${b.time} น. · ${b.guests} ท่าน · โต๊ะ ${b.table} (${ZONE[b.table[0]]})</h4>
+          <h4>${b.time} น. · ${b.guests} ท่าน · โต๊ะ ${escapeHTML(b.table)} (${ZONE[b.table[0]] || ''})</h4>
           <p>${escapeHTML(b.name)}${b.occasion ? ' · ' + escapeHTML(b.occasion) : ''}</p>
-          <p><code>${b.code}</code></p>
+          <p><code>${escapeHTML(b.code)}</code></p>
         </div>
-        <button class="btn-cancel" data-cancel="${b.code}">ยกเลิก</button>
+        <button class="btn-cancel" data-cancel="${escapeHTML(b.code)}">ยกเลิก</button>
       </article>`).join('');
 
-    $$('[data-cancel]', el).forEach((btn) => btn.addEventListener('click', () => {
-      if (!confirm('ต้องการยกเลิกการจองนี้ใช่ไหม?')) return;
-      saveBookings(loadBookings().filter((b) => b.code !== btn.dataset.cancel));
-      renderBookings();
-      if (state.step === 1) renderSlots();
-      if (state.step === 2) renderFloor();
-    }));
+    $$('[data-cancel]', el).forEach((btn) => btn.addEventListener('click', () => cancelBooking(btn)));
+  }
+
+  async function cancelBooking(btn) {
+    const code = btn.dataset.cancel;
+    const booking = loadBookings().find((b) => b.code === code);
+    if (!booking || !confirm('ต้องการยกเลิกการจองนี้ใช่ไหม?')) return;
+
+    if (API_URL) {
+      btn.disabled = true;
+      btn.textContent = 'กำลังยกเลิก…';
+      try {
+        const res = await apiPost({ action: 'cancel', code, phone: booking.phone });
+        // NOT_FOUND: already removed from the sheet by staff, so drop it locally too
+        if (!res.ok && res.error !== 'NOT_FOUND') throw new Error(res.error);
+      } catch (err) {
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = 'ยกเลิก';
+        alert(NETWORK_ERROR);
+        return;
+      }
+      delete remote[booking.date];
+    }
+
+    saveBookings(loadBookings().filter((b) => b.code !== code));
+    renderBookings();
+    if (state.step === 1) refreshSlots(true);
+    if (state.step === 2) refreshFloor();
   }
 
   // ---------- Init ----------
   initDate();
-  renderSlots();
+  refreshSlots();
   renderBookings();
 })();
