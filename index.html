@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ember & Oak — จองโต๊ะ</title>
+  <meta name="description" content="จองโต๊ะร้านอาหาร Ember & Oak ออนไลน์ เลือกวัน เวลา และโต๊ะที่ต้องการได้ทันที">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Noto+Serif+Thai:wght@500;700&family=Noto+Sans+Thai:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="nav">
+    <a href="#top" class="brand">Ember <span>&amp;</span> Oak</a>
+    <nav>
+      <a href="#about">เกี่ยวกับร้าน</a>
+      <a href="#menu">เมนูแนะนำ</a>
+      <a href="#mybookings">การจองของฉัน</a>
+      <a href="#booking" class="btn btn-sm">จองโต๊ะ</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow">Steakhouse &amp; Wine Bar · ตั้งแต่ 2018</p>
+        <h1>ค่ำคืนอบอุ่น<br><em>ในแสงเทียนสีอำพัน</em></h1>
+        <p class="lead">สเต๊กย่างเตาถ่านไม้โอ๊ค ไวน์คัดสรร และบรรยากาศที่ทำให้ทุกมื้อเป็นโอกาสพิเศษ จองโต๊ะของคุณได้ในไม่กี่คลิก</p>
+        <div class="hero-cta">
+          <a href="#booking" class="btn">จองโต๊ะตอนนี้</a>
+          <a href="#menu" class="btn btn-ghost">ดูเมนู</a>
+        </div>
+        <ul class="hero-info">
+          <li><strong>เปิดทุกวัน</strong>17:00 – 23:00</li>
+          <li><strong>โทร</strong>02-123-4567</li>
+          <li><strong>ที่ตั้ง</strong>สุขุมวิท 49, กรุงเทพฯ</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="about" class="section about">
+      <div class="about-text">
+        <p class="eyebrow">เรื่องราวของเรา</p>
+        <h2>ไฟ ไม้ และเวลา</h2>
+        <p>เราเชื่อว่ารสชาติที่ดีต้องใช้เวลา เนื้อวัวทุกชิ้นผ่านการดรายเอจอย่างน้อย 28 วัน ก่อนย่างบนเตาถ่านไม้โอ๊คที่ให้กลิ่นควันหอมละมุน เสิร์ฟคู่กับไวน์กว่า 120 ฉลากจากห้องเก็บไวน์ของเรา</p>
+        <div class="stats">
+          <div><b>28+</b><span>วันดรายเอจ</span></div>
+          <div><b>120</b><span>ฉลากไวน์</span></div>
+          <div><b>14</b><span>โต๊ะเท่านั้น</span></div>
+        </div>
+      </div>
+      <div class="about-art" aria-hidden="true">
+        <div class="ember"></div>
+      </div>
+    </section>
+
+    <section id="menu" class="section">
+      <p class="eyebrow center">Signature</p>
+      <h2 class="center">เมนูแนะนำ</h2>
+      <div class="menu-grid">
+        <article class="dish"><h3>Tomahawk Ribeye</h3><p>ริบอายติดกระดูก 1.2 กก. ดรายเอจ 45 วัน ย่างถ่านไม้โอ๊ค</p><span class="price">฿3,900</span></article>
+        <article class="dish"><h3>Bone Marrow Toast</h3><p>ไขกระดูกอบ เสิร์ฟกับขนมปังซาวร์โดว์และพาร์สลีย์</p><span class="price">฿480</span></article>
+        <article class="dish"><h3>Smoked Duck Breast</h3><p>อกเป็ดรมควัน ซอสเชอร์รี่ดำ และพาร์สนิปบด</p><span class="price">฿890</span></article>
+        <article class="dish"><h3>Burnt Basque Cheesecake</h3><p>ชีสเค้กหน้าไหม้ ราดคาราเมลเกลือทะเล</p><span class="price">฿320</span></article>
+      </div>
+    </section>
+
+    <section id="booking" class="section booking">
+      <p class="eyebrow center">Reservation</p>
+      <h2 class="center">จองโต๊ะ</h2>
+
+      <ol class="steps" aria-label="ขั้นตอนการจอง">
+        <li class="active" data-step="1"><span>1</span>วันและเวลา</li>
+        <li data-step="2"><span>2</span>เลือกโต๊ะ</li>
+        <li data-step="3"><span>3</span>ข้อมูลผู้จอง</li>
+      </ol>
+
+      <form id="bookingForm" class="card" novalidate>
+        <!-- STEP 1 -->
+        <fieldset class="step-panel" data-panel="1">
+          <legend class="sr-only">วันและเวลา</legend>
+          <div class="grid-2">
+            <label>วันที่
+              <input type="date" id="date" name="date" required>
+            </label>
+            <label>จำนวนแขก
+              <div class="stepper">
+                <button type="button" data-guests="-1" aria-label="ลดจำนวน">−</button>
+                <input type="number" id="guests" name="guests" min="1" max="10" value="2" readonly>
+                <button type="button" data-guests="1" aria-label="เพิ่มจำนวน">+</button>
+              </div>
+            </label>
+          </div>
+          <p class="label">เวลา</p>
+          <div id="timeSlots" class="slots" role="radiogroup" aria-label="เลือกเวลา"></div>
+          <p class="hint">มากกว่า 10 ท่าน กรุณาโทร 02-123-4567</p>
+          <div class="actions">
+            <span class="error" id="err1"></span>
+            <button type="button" class="btn" data-next="2">ถัดไป: เลือกโต๊ะ →</button>
+          </div>
+        </fieldset>
+
+        <!-- STEP 2 -->
+        <fieldset class="step-panel" data-panel="2" hidden>
+          <legend class="sr-only">เลือกโต๊ะ</legend>
+          <p class="summary-line" id="summary2"></p>
+          <div class="legend">
+            <span><i class="dot free"></i>ว่าง</span>
+            <span><i class="dot taken"></i>ไม่ว่าง</span>
+            <span><i class="dot small"></i>ที่นั่งไม่พอ</span>
+            <span><i class="dot picked"></i>ที่เลือก</span>
+          </div>
+          <div class="floor" id="floor">
+            <div class="zone-label z-window">ริมหน้าต่าง</div>
+            <div class="zone-label z-bar">บาร์ไวน์</div>
+            <div class="zone-label z-private">ห้องส่วนตัว</div>
+          </div>
+          <p class="picked-info" id="pickedInfo">แตะที่โต๊ะเพื่อเลือก</p>
+          <div class="actions">
+            <button type="button" class="btn btn-ghost" data-next="1">← ย้อนกลับ</button>
+            <span class="error" id="err2"></span>
+            <button type="button" class="btn" data-next="3">ถัดไป: ข้อมูลผู้จอง →</button>
+          </div>
+        </fieldset>
+
+        <!-- STEP 3 -->
+        <fieldset class="step-panel" data-panel="3" hidden>
+          <legend class="sr-only">ข้อมูลผู้จอง</legend>
+          <p class="summary-line" id="summary3"></p>
+          <div class="grid-2">
+            <label>ชื่อ-นามสกุล
+              <input type="text" id="name" name="name" autocomplete="name" required>
+            </label>
+            <label>เบอร์โทรศัพท์
+              <input type="tel" id="phone" name="phone" autocomplete="tel" placeholder="08x-xxx-xxxx" required>
+            </label>
+          </div>
+          <label>อีเมล (ไม่บังคับ)
+            <input type="email" id="email" name="email" autocomplete="email">
+          </label>
+          <label>โอกาสพิเศษ
+            <select id="occasion" name="occasion">
+              <option value="">— ไม่มี —</option>
+              <option>วันเกิด</option>
+              <option>วันครบรอบ</option>
+              <option>ดินเนอร์ธุรกิจ</option>
+              <option>ขอแต่งงาน</option>
+            </select>
+          </label>
+          <label>หมายเหตุถึงร้าน
+            <textarea id="note" name="note" rows="3" placeholder="เช่น แพ้อาหาร, ต้องการเก้าอี้เด็ก"></textarea>
+          </label>
+          <div class="actions">
+            <button type="button" class="btn btn-ghost" data-next="2">← ย้อนกลับ</button>
+            <span class="error" id="err3"></span>
+            <button type="submit" class="btn">ยืนยันการจอง</button>
+          </div>
+        </fieldset>
+      </form>
+    </section>
+
+    <section id="mybookings" class="section">
+      <p class="eyebrow center">My Reservations</p>
+      <h2 class="center">การจองของฉัน</h2>
+      <div id="bookingList" class="booking-list"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="brand">Ember <span>&amp;</span> Oak</div>
+    <p>สุขุมวิท 49 แขวงคลองตันเหนือ เขตวัฒนา กรุงเทพฯ · 02-123-4567</p>
+    <p class="muted">© 2026 Ember &amp; Oak. ร้านตัวอย่างเพื่อสาธิตระบบจองโต๊ะ</p>
+  </footer>
+
+  <dialog id="confirmDialog" class="dialog">
+    <div class="dialog-body">
+      <div class="check">✓</div>
+      <h3>จองสำเร็จ</h3>
+      <p id="confirmText"></p>
+      <p class="code">รหัสการจอง <b id="confirmCode"></b></p>
+      <form method="dialog"><button class="btn">ตกลง</button></form>
+    </div>
+  </dialog>
+
+  <script src="script.js"></script>
+</body>
+</html>
