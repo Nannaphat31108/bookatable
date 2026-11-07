@@ -1,5 +1,5 @@
 // ใส่ลิงก์ Web app ของ Google Apps Script ที่ได้จากการ Deploy (ลงท้ายด้วย /exec)
 // ถ้าเว้นว่างไว้ เว็บจะทำงานแบบเดโม เก็บการจองไว้ในเบราว์เซอร์เท่านั้น
 window.BOOKING_CONFIG = {
-  apiUrl: '',
+  apiUrl: 'https://script.google.com/macros/s/AKfycbyZB8ug68BHjOeXweqmomB55VV0uGTrJdP9MXwSTOHpEvoBmmqe--XjJMimn3GXnbK5/exec',
 };
