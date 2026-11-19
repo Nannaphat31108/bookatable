@@ -286,6 +286,7 @@
   }
 
   function goTo(step, scroll = true) {
+    $$('.error', form).forEach((el) => { el.textContent = ''; }); // drop stale messages from earlier attempts
     for (let s = 1; s < step; s++) {
       const err = validateStep(s);
       if (err) { $(`#${err[0]}`).textContent = err[1]; step = s; break; }
